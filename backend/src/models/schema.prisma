@@ -1,0 +1,145 @@
+// Prisma schema for Where Is My Faculty
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Department {
+  id       String    @id @default(uuid())
+  name     String
+  code     String    @unique
+  faculty  Faculty[] @relation("DepartmentFaculty")
+  headId   String?
+
+  @@map("departments")
+}
+
+model Faculty {
+  id                  String          @id @default(uuid())
+  name                String
+  email               String          @unique
+  departmentId        String
+  designation         String
+  phone               String?
+  officeLocation      String
+  avatarUrl           String?
+  azureAdObjectId     String?         @unique
+  workingHoursStart   String          @default("09:00")
+  workingHoursEnd     String          @default("17:30")
+  isActive            Boolean         @default(true)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  department          Department      @relation("DepartmentFaculty", fields: [departmentId], references: [id])
+  calendarEvents      CalendarEvent[]
+  leaves              Leave[]
+  syncLogs            SyncLog[]
+
+  @@map("faculty")
+}
+
+enum ShowAs {
+  free
+  tentative
+  busy
+  out_of_office
+  working_elsewhere
+}
+
+model CalendarEvent {
+  id             String   @id @default(uuid())
+  facultyId      String
+  outlookEventId String   @unique
+  subject        String?
+  startTime      DateTime
+  endTime        DateTime
+  showAs         ShowAs   @default(busy)
+  isPrivate      Boolean  @default(false)
+  isAllDay       Boolean  @default(false)
+  location       String?
+  isCancelled    Boolean  @default(false)
+  lastSyncedAt   DateTime @default(now())
+
+  faculty        Faculty  @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@index([facultyId, startTime, endTime])
+  @@map("calendar_events")
+}
+
+enum LeaveType {
+  casual
+  earned
+  medical
+  conference
+  other
+}
+
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum HalfDayPeriod {
+  morning
+  afternoon
+}
+
+model Leave {
+  id             String         @id @default(uuid())
+  facultyId      String
+  leaveType      LeaveType
+  startDate      DateTime
+  endDate        DateTime
+  isHalfDay      Boolean        @default(false)
+  halfDayPeriod  HalfDayPeriod?
+  reason         String?
+  status         LeaveStatus    @default(pending)
+  submittedAt    DateTime       @default(now())
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  adminNote      String?
+
+  faculty        Faculty        @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@index([facultyId, startDate, endDate])
+  @@map("leaves")
+}
+
+enum SyncStatus {
+  success
+  partial
+  failed
+}
+
+model SyncLog {
+  id            String     @id @default(uuid())
+  facultyId     String
+  syncType      String     @default("calendar")
+  status        SyncStatus
+  eventsFetched Int        @default(0)
+  errorMessage  String?
+  syncedAt      DateTime   @default(now())
+
+  faculty       Faculty    @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@map("sync_logs")
+}
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  role              String   @default("student")
+  facultyId         String?
+  azureAdObjectId   String?  @unique
+  lastLogin         DateTime?
+  createdAt         DateTime @default(now())
+
+  @@map("users")
+}
